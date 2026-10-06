@@ -1,26 +1,403 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+.testing-reference-page {
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  color: #111111;
+  font-family: var(--font-geist-sans), sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.testing-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 130px;
+  padding: 30px 42px 0;
+  z-index: 20;
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+.testing-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.testing-logo {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.testing-intro {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+
+.testing-kicker {
+  position: absolute;
+  top: 65px;
+  left: 42px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.testing-code-button {
+  position: absolute;
+  top: 30px;
+  right: 42px;
+  max-width: calc(100% - 84px);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #111111;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: right;
+  cursor: pointer;
+}
+
+.testing-content {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.testing-center {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diamond-stage {
+  position: relative;
+  width: 750px;
+  height: 750px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.diamond {
+  position: absolute;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.diamond-large {
+  width: 750px;
+  height: 750px;
+  animation: rotateLarge 26s linear infinite;
+}
+
+.diamond-medium {
+  width: 600px;
+  height: 600px;
+  animation: rotateMedium 20s linear infinite reverse;
+}
+
+.diamond-small {
+  width: 450px;
+  height: 450px;
+  animation: rotateSmall 15s linear infinite;
+}
+
+@keyframes rotateLarge {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes rotateMedium {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rotateSmall {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.testing-input-area {
+  position: relative;
+  z-index: 10;
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.click-to-type {
+  border: 0;
+  padding: 10px;
+  background: transparent;
+  color: #111111;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.click-to-type:hover {
+  letter-spacing: 0.2em;
+}
+
+.input-prompt {
+  margin-top: 14px;
+  color: #333333;
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+}
+
+.input-line {
+  width: 300px;
+  height: 1px;
+  margin-top: 10px;
+  background: #111111;
+}
+
+.input-label {
+  margin-bottom: 10px;
+  color: #111111;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+}
+
+.testing-input-area input {
+  width: 340px;
+  border: 0;
+  border-bottom: 1px solid #111111;
+  outline: none;
+  padding: 8px 0 12px;
+  background: transparent;
+  color: #111111;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.testing-input-area input::placeholder {
+  color: #555555;
+  opacity: 1;
+}
+
+.testing-input-area input:focus {
+  border-bottom-color: #111111;
+}
+
+.testing-error {
+  margin: 10px 0 0;
+  color: #b00020;
+  font-size: 9px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.testing-success {
+  position: absolute;
+  bottom: 118px;
+  margin: 0;
+  color: #555555;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.testing-back {
+  position: absolute;
+  left: 42px;
+  bottom: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #111111;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.testing-back:hover {
+  opacity: 0.55;
+}
+
+.testing-back:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.diamond-stage.is-active .diamond-large {
+  animation-duration: 20s;
+}
+
+.diamond-stage.is-active .diamond-medium {
+  animation-duration: 15s;
+}
+
+.diamond-stage.is-active .diamond-small {
+  animation-duration: 11s;
+}
+
+@media (max-width: 900px) {
+  .testing-header {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .testing-kicker {
+    left: 24px;
+  }
+
+  .testing-code-button {
+    right: 24px;
+    max-width: calc(100% - 48px);
+  }
+
+  .diamond-stage {
+    width: 525px;
+    height: 525px;
+  }
+
+  .diamond-large {
+    width: 525px;
+    height: 525px;
+  }
+
+  .diamond-medium {
+    width: 420px;
+    height: 420px;
+  }
+
+  .diamond-small {
+    width: 315px;
+    height: 315px;
+  }
+
+  .testing-input-area {
+    width: 330px;
+  }
+
+  .input-prompt {
+    font-size: 15px;
+  }
+
+  .input-line {
+    width: 225px;
+  }
+
+  .testing-input-area input {
+    width: 280px;
+    font-size: 21px;
+  }
+}
+
+@media (max-width: 600px) {
+  .testing-header {
+    height: 100px;
+    padding-top: 24px;
+  }
+
+  .testing-logo {
+    font-size: 11px;
+  }
+
+  .testing-intro {
+    font-size: 8px;
+  }
+
+  .testing-code-button {
+    top: 24px;
+    right: 24px;
+    max-width: calc(100% - 48px);
+    font-size: 8px;
+  }
+
+  .testing-kicker {
+    top: 56px;
+    left: 24px;
+    font-size: 7px;
+  }
+
+  .diamond-stage {
+    width: 360px;
+    height: 360px;
+  }
+
+  .diamond-large {
+    width: 360px;
+    height: 360px;
+  }
+
+  .diamond-medium {
+    width: 288px;
+    height: 288px;
+  }
+
+  .diamond-small {
+    width: 216px;
+    height: 216px;
+  }
+
+  .testing-input-area {
+    width: 280px;
+  }
+
+  .click-to-type {
+    font-size: 8px;
+  }
+
+  .input-prompt {
+    font-size: 13px;
+  }
+
+  .input-line {
+    width: 210px;
+  }
+
+  .testing-input-area input {
+    width: 250px;
+    font-size: 19px;
+  }
+
+  .testing-back {
+    left: 24px;
+    bottom: 28px;
+  }
 }
