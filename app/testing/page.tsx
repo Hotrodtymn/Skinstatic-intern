@@ -16,7 +16,7 @@ export default function TestingPage() {
 
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiMessage, setApiMessage] = useState("");
+  const [isReadyToProceed, setIsReadyToProceed] = useState(false);
 
   const currentValue = step === "name" ? name : location;
 
@@ -38,7 +38,7 @@ export default function TestingPage() {
 
   const handleInputChange = (value: string) => {
     setError("");
-    setApiMessage("");
+    setIsReadyToProceed(false);
 
     if (step === "name") {
       setName(value);
@@ -48,10 +48,7 @@ export default function TestingPage() {
   };
 
   const handleSubmit = async () => {
-    const validationError = validateValue(
-      currentValue,
-      step
-    );
+    const validationError = validateValue(currentValue, step);
 
     setError(validationError);
 
@@ -64,10 +61,7 @@ export default function TestingPage() {
     if (step === "name") {
       setName(cleanedValue);
 
-      localStorage.setItem(
-        "skinstatic-name",
-        cleanedValue
-      );
+      localStorage.setItem("skinstatic-name", cleanedValue);
 
       setStep("location");
       setIsTyping(true);
@@ -77,69 +71,58 @@ export default function TestingPage() {
     }
 
     const cleanedLocation = cleanedValue;
+    const cleanedName = name.trim();
 
     setLocation(cleanedLocation);
 
-    localStorage.setItem(
-      "skinstatic-name",
-      name.trim()
-    );
+    localStorage.setItem("skinstatic-name", cleanedName);
 
-    localStorage.setItem(
-      "skinstatic-location",
-      cleanedLocation
-    );
+    localStorage.setItem("skinstatic-location", cleanedLocation);
 
     setIsSubmitting(true);
+    setIsReadyToProceed(false);
     setError("");
-    setApiMessage("");
 
     try {
-      const response = await fetch(
-        "https://us-central1-api-skinstric-ai.cloudfunctions.net/skinstricPhaseOne",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      const minimumLoadingTime = new Promise<void>((resolve) => {
+        setTimeout(resolve, 1200);
+      });
+
+      const [response] = await Promise.all([
+        fetch(
+          "https://us-central1-api-skinstric-ai.cloudfunctions.net/skinstricPhaseOne",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: cleanedName,
+              location: cleanedLocation,
+            }),
           },
-          body: JSON.stringify({
-            name: name.trim(),
-            location: cleanedLocation,
-          }),
-        }
-      );
+        ),
+        minimumLoadingTime,
+      ]);
 
       const data = await response.json();
 
-      console.log(
-        "Phase One API response:",
-        data
-      );
+      console.log("Phase One API response:", data);
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            "Something went wrong."
+          data?.message || data?.error || "Something went wrong.",
         );
       }
 
-      setApiMessage(
-        data?.message ||
-          "Information submitted successfully."
-      );
+      setIsReadyToProceed(true);
     } catch (submitError) {
-      console.error(
-        "Phase One API error:",
-        submitError
-      );
+      console.error("Phase One API error:", submitError);
 
       if (submitError instanceof Error) {
         setError(submitError.message);
       } else {
-        setError(
-          "Unable to submit your information."
-        );
+        setError("Unable to submit your information.");
       }
     } finally {
       setIsSubmitting(false);
@@ -150,7 +133,7 @@ export default function TestingPage() {
     if (step === "location") {
       setStep("name");
       setError("");
-      setApiMessage("");
+      setIsReadyToProceed(false);
       return;
     }
 
@@ -161,23 +144,14 @@ export default function TestingPage() {
     <main className="testing-reference-page">
       <header className="testing-header">
         <div className="testing-brand">
-          <span className="testing-logo">
-            SKINSTATIC
-          </span>
+          <span className="testing-logo">SKINSTATIC</span>
 
-          <span className="testing-intro">
-            [ INTRO ]
-          </span>
+          <span className="testing-intro">[ INTRO ]</span>
         </div>
 
-        <span className="testing-kicker">
-          TO START ANALYSIS
-        </span>
+        <span className="testing-kicker">TO START ANALYSIS</span>
 
-        <button
-          type="button"
-          className="testing-code-button"
-        >
+        <button type="button" className="testing-code-button">
           ENTER CODE
         </button>
       </header>
@@ -185,11 +159,9 @@ export default function TestingPage() {
       <section className="testing-content">
         <div className="testing-center">
           <div
-            className={`diamond-stage ${
-              isTyping ? "is-active" : ""
-            }`}
+            className={`diamond-stage ${isTyping ? "is-active" : ""}`}
             onClick={() => {
-              if (!isSubmitting) {
+              if (!isSubmitting && !isReadyToProceed) {
                 setIsTyping(true);
               }
             }}
@@ -226,33 +198,41 @@ export default function TestingPage() {
                     CLICK TO TYPE
                   </button>
 
-                  <span className="input-prompt">
-                    YOUR NAME HERE
-                  </span>
+                  <span className="input-prompt">YOUR NAME HERE</span>
 
                   <span className="input-line" />
                 </>
+              ) : isSubmitting ? (
+                <div className="testing-loading-state">
+                  <span className="testing-loading-label">ANALYZING</span>
+
+                  <span className="testing-loading-dots">...</span>
+                </div>
+              ) : isReadyToProceed ? (
+                <div className="testing-proceed-state">
+                  <span className="testing-ready-label">ANALYSIS READY</span>
+
+                  <button
+                    type="button"
+                    className="testing-proceed"
+                    onClick={() => router.push("/result")}
+                  >
+                    PROCEED →
+                  </button>
+                </div>
               ) : (
                 <>
                   <span className="input-label">
-                    {step === "name"
-                      ? "YOUR NAME"
-                      : "YOUR LOCATION"}
+                    {step === "name" ? "YOUR NAME" : "YOUR LOCATION"}
                   </span>
 
                   <input
                     id="testing-input"
                     type="text"
                     value={currentValue}
-                    onChange={(event) =>
-                      handleInputChange(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => handleInputChange(event.target.value)}
                     placeholder={
-                      step === "name"
-                        ? "Your name here"
-                        : "Your location here"
+                      step === "name" ? "Your name here" : "Your location here"
                     }
                     autoFocus
                     disabled={isSubmitting}
@@ -264,21 +244,11 @@ export default function TestingPage() {
                     }}
                   />
 
-                  {error && (
-                    <p className="testing-error">
-                      {error}
-                    </p>
-                  )}
+                  {error && <p className="testing-error">{error}</p>}
                 </>
               )}
             </div>
           </div>
-
-          {apiMessage && (
-            <p className="testing-success">
-              {apiMessage}
-            </p>
-          )}
         </div>
 
         <button
