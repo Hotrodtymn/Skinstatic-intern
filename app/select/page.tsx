@@ -34,8 +34,8 @@ export default function SelectPage() {
 
   const handleSelect = (id: string) => {
     if (id === "demographics") {
-  router.push("/summary");
-}
+      router.push("/summary");
+    }
   };
 
   return (
@@ -47,9 +47,7 @@ export default function SelectPage() {
         </div>
 
         <div className="select-header-right">
-          <span className="select-kicker">
-            TO START ANALYSIS
-          </span>
+          
 
           <button
             type="button"
@@ -116,7 +114,7 @@ export default function SelectPage() {
             className="select-sum"
             onClick={() => router.push("/summary")}
           >
-            SUM →
+            GET SUMMARY →
           </button>
         </div>
       </section>

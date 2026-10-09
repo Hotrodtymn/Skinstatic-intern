@@ -1,6 +1,13 @@
+
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import {
+  ChangeEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 type AnalysisData = {
@@ -15,52 +22,100 @@ type ApiResponse = {
   data?: AnalysisData;
 };
 
+type CameraMode = "closed" | "live" | "captured";
+
+const API_ENDPOINT =
+  "https://us-central1-frontend-simplified.cloudfunctions.net/skinstricPhaseTwo";
+
 export default function ResultPage() {
   const router = useRouter();
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedImage, setSelectedImage] =
     useState<string | null>(null);
 
   const [fileName, setFileName] = useState("");
 
-  const [isAnalyzing, setIsAnalyzing] =
-    useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const [error, setError] = useState("");
+
+  const [cameraMode, setCameraMode] =
+    useState<CameraMode>("closed");
+
+  const [isStartingCamera, setIsStartingCamera] =
+    useState(false);
+
+  const [cameraError, setCameraError] = useState("");
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
+  useEffect(() => {
+    if (cameraMode !== "live" || !streamRef.current) {
+      return;
+    }
+
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.srcObject = streamRef.current;
+
+    void video.play().catch(() => {
+      setCameraError(
+        "Unable to display the camera preview. Please try again."
+      );
+    });
+  }, [cameraMode]);
 
   const handleImageChange = (
     event: ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
 
+    // Allow the same image to be selected again.
+    event.target.value = "";
+
     if (!file) {
       return;
     }
 
-    console.log(
-      "========== IMAGE SELECTION =========="
-    );
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setError("Please select a JPG, JPEG, or PNG image.");
+      return;
+    }
 
-    console.log(
-      "File name:",
-      file.name
-    );
+    if (file.size > 15 * 1024 * 1024) {
+      setError("Please select an image smaller than 15 MB.");
+      return;
+    }
 
-    console.log(
-      "File type:",
-      file.type
-    );
-
-    console.log(
-      "File size:",
-      file.size,
-      "bytes"
-    );
-
-    console.log(
-      "======================================"
-    );
-
+    stopCamera();
+    setCameraMode("closed");
+    setCameraError("");
     setError("");
     setFileName(file.name);
 
@@ -68,58 +123,172 @@ export default function ResultPage() {
 
     reader.onload = () => {
       if (typeof reader.result !== "string") {
-        setError(
-          "Unable to read this image."
-        );
+        setError("Unable to read this image.");
+        setSelectedImage(null);
+        setFileName("");
         return;
       }
 
       setSelectedImage(reader.result);
-
-      console.log(
-        "========== IMAGE LOADED =========="
-      );
-
-      console.log(
-        "Image loaded successfully."
-      );
-
-      console.log(
-        "Image data length:",
-        reader.result.length
-      );
-
-      console.log(
-        "Image data starts with:",
-        reader.result.substring(0, 50)
-      );
-
-      console.log(
-        "Image data ends with:",
-        reader.result.substring(
-          reader.result.length - 50
-        )
-      );
-
-      console.log(
-        "=================================="
-      );
     };
 
     reader.onerror = () => {
-      console.error(
-        "FileReader failed to read image."
-      );
-
-      setError(
-        "Unable to read this image."
-      );
-
+      setError("Unable to read this image.");
       setSelectedImage(null);
       setFileName("");
     };
 
     reader.readAsDataURL(file);
+  };
+
+  const handleStartCamera = async () => {
+    if (isStartingCamera || isAnalyzing) {
+      return;
+    }
+
+    setError("");
+    setCameraError("");
+    setIsStartingCamera(true);
+
+    stopCamera();
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          "Camera access is not supported by this browser. Please use the upload option instead."
+        );
+      }
+
+      let stream: MediaStream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (firstError) {
+        // Some devices do not support the preferred camera settings.
+        if (
+          firstError instanceof DOMException &&
+          firstError.name === "NotAllowedError"
+        ) {
+          throw firstError;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
+
+      streamRef.current = stream;
+      setCameraMode("live");
+    } catch (cameraFailure) {
+      console.error("Camera access failed:", cameraFailure);
+
+      if (cameraFailure instanceof DOMException) {
+        if (
+          cameraFailure.name === "NotAllowedError" ||
+          cameraFailure.name === "PermissionDeniedError"
+        ) {
+          setCameraError(
+            "Camera permission was denied. Allow camera access in your browser settings, or upload a photo instead."
+          );
+        } else if (
+          cameraFailure.name === "NotFoundError" ||
+          cameraFailure.name === "DevicesNotFoundError"
+        ) {
+          setCameraError(
+            "No camera was found on this device. Please upload a photo instead."
+          );
+        } else if (
+          cameraFailure.name === "NotReadableError" ||
+          cameraFailure.name === "TrackStartError"
+        ) {
+          setCameraError(
+            "Your camera may be in use by another application. Close that application and try again."
+          );
+        } else {
+          setCameraError(
+            "Unable to access your camera. Please upload a photo instead."
+          );
+        }
+      } else {
+        setCameraError(
+          cameraFailure instanceof Error
+            ? cameraFailure.message
+            : "Unable to access your camera."
+        );
+      }
+
+      stopCamera();
+      setCameraMode("closed");
+    } finally {
+      setIsStartingCamera(false);
+    }
+  };
+
+  const handleCapturePhoto = () => {
+    const video = videoRef.current;
+
+    if (
+      !video ||
+      !video.videoWidth ||
+      !video.videoHeight
+    ) {
+      setCameraError(
+        "The camera is not ready yet. Please wait a moment and try again."
+      );
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      setCameraError(
+        "Unable to capture the photo. Please try again."
+      );
+      return;
+    }
+
+    // Mirror the selfie so it looks natural in the preview.
+    context.translate(canvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const capturedImage = canvas.toDataURL("image/jpeg", 0.9);
+
+    setSelectedImage(capturedImage);
+    setFileName("selfie.jpg");
+    setError("");
+    setCameraError("");
+    setCameraMode("captured");
+
+    // The image is captured, so the camera can be switched off.
+    stopCamera();
+  };
+
+  const handleRetakePhoto = async () => {
+    setSelectedImage(null);
+    setFileName("");
+    setCameraError("");
+    await handleStartCamera();
+  };
+
+  const handleChooseUpload = () => {
+    setCameraError("");
+    setCameraMode("closed");
+    stopCamera();
+    fileInputRef.current?.click();
   };
 
   const handleAnalyze = async () => {
@@ -131,152 +300,47 @@ export default function ResultPage() {
     setError("");
 
     try {
-      /*
-       * FileReader creates a data URL:
-       *
-       * data:image/jpeg;base64,/9j/4AAQ...
-       *
-       * The Phase Two API expects the Base64
-       * image string, so we remove the prefix.
-       */
-
-      const commaIndex =
-        selectedImage.indexOf(",");
+      const commaIndex = selectedImage.indexOf(",");
 
       const base64Image =
         commaIndex !== -1
-          ? selectedImage.substring(
-              commaIndex + 1
-            )
+          ? selectedImage.substring(commaIndex + 1)
           : selectedImage;
 
-      console.log(
-        "========== PHASE TWO DEBUG =========="
-      );
+      console.log("========== PHASE TWO DEBUG ==========");
+      console.log("Image source:", fileName);
+      console.log("Base64 length:", base64Image.length);
+      console.log("Has data URL prefix:", selectedImage.startsWith("data:image/"));
+      console.log("======================================");
+
+      console.log("========== API REQUEST ==========");
+      console.log("Endpoint:", API_ENDPOINT);
+      console.log("HTTP method: POST");
+      console.log("Request field: image");
+      console.log("=================================");
+
+      const response = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: base64Image,
+        }),
+      });
+
+      console.log("Phase Two HTTP status:", response.status);
+
+      const data: ApiResponse = await response.json();
 
       console.log(
-        "Original data URL length:",
-        selectedImage.length
-      );
-
-      console.log(
-        "Base64 length:",
-        base64Image.length
-      );
-
-      console.log(
-        "Original prefix:",
-        selectedImage.substring(0, 50)
-      );
-
-      console.log(
-        "Base64 prefix:",
-        base64Image.substring(0, 50)
-      );
-
-      console.log(
-        "Base64 suffix:",
-        base64Image.substring(
-          base64Image.length - 50
-        )
-      );
-
-      console.log(
-        "Has data URL prefix:",
-        selectedImage.startsWith(
-          "data:image/"
-        )
-      );
-
-      console.log(
-        "Base64 starts with JPEG signature:",
-        base64Image.startsWith(
-          "/9j/"
-        )
-      );
-
-      console.log(
-        "======================================"
-      );
-
-      console.log(
-        "========== API REQUEST =========="
-      );
-
-      console.log(
-        "Endpoint:",
-        "https://us-central1-frontend-simplified.cloudfunctions.net/skinstricPhaseTwo"
-      );
-
-      console.log(
-        "HTTP method:",
-        "POST"
-      );
-
-      console.log(
-        "Request field:",
-        "Image"
-      );
-
-      console.log(
-        "Request Base64 length:",
-        base64Image.length
-      );
-
-      console.log(
-        "================================="
-      );
-
-      const response = await fetch(
-        "https://us-central1-frontend-simplified.cloudfunctions.net/skinstricPhaseTwo",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            image: base64Image,
-          }),
-        }
-      );
-
-      console.log(
-        "========== API RESPONSE =========="
-      );
-
-      console.log(
-        "Phase Two HTTP status:",
-        response.status
-      );
-
-      console.log(
-        "Phase Two HTTP status text:",
-        response.statusText
-      );
-
-      const data: ApiResponse =
-        await response.json();
-
-      console.log(
-        "Raw Phase Two response:"
-      );
-
-      console.log(
-        JSON.stringify(
-          data,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "=================================="
+        "Raw Phase Two response:",
+        JSON.stringify(data, null, 2)
       );
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            "Unable to analyze this image."
+          data?.message || "Unable to analyze this image."
         );
       }
 
@@ -287,60 +351,13 @@ export default function ResultPage() {
       }
 
       console.log(
-        "========== DEMOGRAPHIC RESULTS =========="
+        "Demographic results:",
+        JSON.stringify(data.data, null, 2)
       );
-
-      console.log(
-        "RACE:"
-      );
-
-      console.log(
-        JSON.stringify(
-          data.data.race,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "AGE:"
-      );
-
-      console.log(
-        JSON.stringify(
-          data.data.age,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "GENDER:"
-      );
-
-      console.log(
-        JSON.stringify(
-          data.data.gender,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "=========================================="
-      );
-
-      /*
-       * Save the API response so the demographics
-       * page can use the exact data returned by
-       * the Phase Two API.
-       */
 
       localStorage.setItem(
         "skinstatic-analysis",
-        JSON.stringify(
-          data.data
-        )
+        JSON.stringify(data.data)
       );
 
       localStorage.setItem(
@@ -348,48 +365,18 @@ export default function ResultPage() {
         selectedImage
       );
 
-      console.log(
-        "Analysis data saved to localStorage."
-      );
-
-      console.log(
-        "Saved analysis:",
-        JSON.stringify(
-          data.data,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "Navigating to /select..."
-      );
+      console.log("Analysis data saved to localStorage.");
+      console.log("Navigating to /select...");
 
       router.push("/select");
     } catch (analysisError) {
-      console.error(
-        "========== PHASE TWO ERROR =========="
-      );
+      console.error("Phase Two error:", analysisError);
 
-      console.error(
-        analysisError
-      );
-
-      console.error(
-        "======================================"
-      );
-
-      if (
+      setError(
         analysisError instanceof Error
-      ) {
-        setError(
-          analysisError.message
-        );
-      } else {
-        setError(
-          "Unable to analyze this image."
-        );
-      }
+          ? analysisError.message
+          : "Unable to analyze this image."
+      );
 
       setIsAnalyzing(false);
     }
@@ -400,6 +387,7 @@ export default function ResultPage() {
       return;
     }
 
+    stopCamera();
     router.push("/testing");
   };
 
@@ -407,13 +395,8 @@ export default function ResultPage() {
     <main className="result-page">
       <header className="result-header">
         <div className="result-brand">
-          <span className="result-logo">
-            SKINSTATIC
-          </span>
-
-          <span className="result-intro">
-            [ INTRO ]
-          </span>
+          <span className="result-logo">SKINSTATIC</span>
+          <span className="result-intro">[ INTRO ]</span>
         </div>
 
         <div className="result-header-right">
@@ -434,76 +417,154 @@ export default function ResultPage() {
         {!isAnalyzing ? (
           <>
             <div className="result-title">
-              <span>
-                TO START ANALYSIS
-              </span>
-
+              <span>TO START ANALYSIS</span>
               <strong>
-                UPLOAD A PHOTO
+                {cameraMode === "live"
+                  ? "TAKE A PHOTO"
+                  : selectedImage
+                    ? "PHOTO SELECTED"
+                    : "UPLOAD OR TAKE A PHOTO"}
               </strong>
             </div>
 
             <div className="result-upload-area">
-              <label
-                htmlFor="result-image-upload"
-                className={`result-upload-box ${
-                  selectedImage
-                    ? "has-image"
-                    : ""
-                }`}
-              >
-                {selectedImage ? (
-                  <img
-                    src={selectedImage}
-                    alt="Selected for analysis"
-                    className="result-preview"
-                  />
-                ) : (
-                  <div className="result-upload-placeholder">
-                    <span className="result-upload-icon">
-                      +
-                    </span>
-
-                    <span className="result-upload-text">
-                      CLICK TO UPLOAD
-                    </span>
-
-                    <span className="result-upload-subtext">
-                      JPG, JPEG OR PNG
-                    </span>
+              {cameraMode === "live" ? (
+                <div className="result-camera-panel">
+                  <div className="result-camera-preview">
+                    <video
+                      ref={videoRef}
+                      className="result-camera-video"
+                      autoPlay
+                      playsInline
+                      muted
+                      aria-label="Live selfie camera preview"
+                      style={{
+                        transform: "scaleX(-1)",
+                      }}
+                    />
                   </div>
-                )}
 
-                <input
-                  id="result-image-upload"
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png"
-                  onChange={
-                    handleImageChange
-                  }
-                  hidden
-                />
-              </label>
+                  <p className="result-camera-instructions">
+                    CENTER YOUR FACE IN THE FRAME
+                  </p>
 
-              {fileName && (
-                <p className="result-file-name">
-                  {fileName}
+                  <button
+                    type="button"
+                    className="result-analyze-button"
+                    onClick={handleCapturePhoto}
+                  >
+                    CAPTURE PHOTO
+                  </button>
+
+                  <button
+                    type="button"
+                    className="result-camera-cancel"
+                    onClick={() => {
+                      stopCamera();
+                      setCameraMode("closed");
+                      setCameraError("");
+                    }}
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className={`result-upload-box ${
+                      selectedImage ? "has-image" : ""
+                    }`}
+                  >
+                    {selectedImage ? (
+                      <img
+                        src={selectedImage}
+                        alt="Photo selected for analysis"
+                        className="result-preview"
+                      />
+                    ) : (
+                      <div className="result-upload-placeholder">
+                        <span className="result-upload-icon">
+                          +
+                        </span>
+
+                        <span className="result-upload-text">
+                          SELECT A PHOTO
+                        </span>
+
+                        <span className="result-upload-subtext">
+                          JPG, JPEG OR PNG
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    id="result-image-upload"
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={handleImageChange}
+                    hidden
+                  />
+
+                  <div className="result-photo-options">
+                    <button
+                      type="button"
+                      className="result-analyze-button"
+                      onClick={handleChooseUpload}
+                    >
+                      UPLOAD A PHOTO
+                    </button>
+
+                    <button
+                      type="button"
+                      className="result-analyze-button"
+                      onClick={handleStartCamera}
+                      disabled={isStartingCamera}
+                    >
+                      {isStartingCamera
+                        ? "OPENING CAMERA..."
+                        : "TAKE A PHOTO"}
+                    </button>
+                  </div>
+
+                  {selectedImage && cameraMode === "captured" && (
+                    <button
+                      type="button"
+                      className="result-camera-cancel"
+                      onClick={handleRetakePhoto}
+                      disabled={isStartingCamera}
+                    >
+                      RETAKE PHOTO
+                    </button>
+                  )}
+
+                  {fileName && (
+                    <p className="result-file-name">
+                      {fileName}
+                    </p>
+                  )}
+                </>
+              )}
+
+              {cameraError && (
+                <p className="result-error" role="alert">
+                  {cameraError}
                 </p>
               )}
 
               {error && (
-                <p className="result-error">
+                <p className="result-error" role="alert">
                   {error}
                 </p>
               )}
 
-              {selectedImage && (
+              {selectedImage && cameraMode !== "live" && (
                 <button
                   type="button"
                   className="result-analyze-button"
-                  onClick={
-                    handleAnalyze
-                  }
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing}
                 >
                   ANALYZE PHOTO →
                 </button>
