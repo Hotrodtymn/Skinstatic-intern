@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -142,8 +141,9 @@ export default function SummaryPage() {
   const router = useRouter();
 
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
-  const [actualSelections, setActualSelections] =
-    useState<ActualSelections>({});
+  const [actualSelections, setActualSelections] = useState<ActualSelections>(
+    {},
+  );
   const [activeCategory, setActiveCategory] = useState<Category>("race");
   const [isReady, setIsReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -168,9 +168,7 @@ export default function SummaryPage() {
       }
 
       if (savedSelections) {
-        setActualSelections(
-          normalizeSelections(JSON.parse(savedSelections)),
-        );
+        setActualSelections(normalizeSelections(JSON.parse(savedSelections)));
       }
     } catch (error) {
       console.error("Unable to load analysis:", error);
@@ -191,8 +189,13 @@ export default function SummaryPage() {
   const leadingResult = results[0];
   const selectedActual = actualSelections[activeCategory];
 
+  // Display the selected estimate in the circle.
+  // Fall back to the highest AI estimate if none is selected.
+  const displayedResult =
+    results.find(([value]) => value === selectedActual) ?? leadingResult;
+
   function selectActual(value: string) {
-    const updated = {
+    const updated: ActualSelections = {
       ...actualSelections,
       [activeCategory]: value,
     };
@@ -220,11 +223,13 @@ export default function SummaryPage() {
           >
             SKINSTATIC
           </button>
+
           <span className="summary-intro">[ INTRO ]</span>
         </div>
 
         <div className="summary-header-right">
           <span className="summary-kicker">TO START ANALYSIS</span>
+
           <button
             type="button"
             className="summary-code-button"
@@ -250,17 +255,21 @@ export default function SummaryPage() {
     return (
       <main className="summary-page">
         {renderHeader()}
+
         <section className="summary-content">
           <div className="summary-heading">
             <span>A.I.</span>
             <strong>ANALYSIS</strong>
           </div>
+
           <div className="summary-empty-state">
             <h2>ANALYSIS DATA UNAVAILABLE</h2>
+
             <p>
               We could not load the complete analysis. Return to the previous
               step and try again.
             </p>
+
             <button
               type="button"
               className="summary-back"
@@ -290,32 +299,54 @@ export default function SummaryPage() {
         </div>
 
         <div className="summary-dashboard">
-          <nav className="summary-category-nav" aria-label="Demographic category">
-            {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                className={`summary-category-button ${
-                  activeCategory === category ? "is-active" : ""
-                }`}
-                onClick={() => setActiveCategory(category)}
-                aria-pressed={activeCategory === category}
-              >
-                <span>{labels[category]}</span>
-                <span aria-hidden="true">→</span>
-              </button>
-            ))}
+          <nav
+            className="summary-category-nav"
+            aria-label="Demographic category"
+          >
+            {categories.map((category) => {
+              const selectedValue = actualSelections[category];
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  className={`summary-category-button ${
+                    activeCategory === category ? "is-active" : ""
+                  }`}
+                  onClick={() => setActiveCategory(category)}
+                  aria-pressed={activeCategory === category}
+                >
+                  <span className="summary-category-label">
+                    {labels[category]}
+                  </span>
+
+                  {selectedValue && (
+                    <span className="summary-category-selection">
+                      {formatLabel(selectedValue)}
+                    </span>
+                  )}
+
+                  <span className="summary-category-arrow" aria-hidden="true">
+                    →
+                  </span>
+                </button>
+              );
+            })}
           </nav>
 
           <section className="summary-circle-panel">
-            {leadingResult ? (
+            {displayedResult ? (
               <>
-                <CircularProgress score={leadingResult[1]} />
+                <CircularProgress score={displayedResult[1]} />
+
                 <span className="summary-circle-caption">
-                  MOST LIKELY {labels[activeCategory]}
+                  {selectedActual
+                    ? `SELECTED ${labels[activeCategory]}`
+                    : `MOST LIKELY ${labels[activeCategory]}`}
                 </span>
+
                 <strong className="summary-circle-result">
-                  {formatLabel(leadingResult[0])}
+                  {formatLabel(displayedResult[0])}
                 </strong>
               </>
             ) : (
@@ -350,6 +381,7 @@ export default function SummaryPage() {
                     <span className="summary-estimate-info">
                       <span className="summary-estimate-name">
                         {formatLabel(value)}
+
                         {selected && (
                           <span className="summary-actual-label">ACTUAL</span>
                         )}
